@@ -50,6 +50,7 @@ async def search(
             expiration_date=r.get("expiration_date"),
         )
         for r in raw_results[:limit]
+        if r.get("license_number")
     ]
 
     return SearchResponse(
