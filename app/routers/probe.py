@@ -37,8 +37,8 @@ async def probe(response: Response):
     """
     try:
         ok = _scraper.health_check()
-    except ScraperUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"CA probe failed: {e}")
 
     if not ok:
         if _is_maintenance_window():
