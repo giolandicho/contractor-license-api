@@ -44,7 +44,7 @@ class CAScraper(BaseScraper):
     def _get(self, url: str, params=None, retries: int = 2) -> httpx.Response:
         for attempt in range(retries + 1):
             try:
-                with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=15.0), follow_redirects=True) as client:
+                with httpx.Client(timeout=httpx.Timeout(5.0, connect=5.0, read=15.0), follow_redirects=True) as client:
                     resp = client.get(url, params=params, headers=HEADERS)
                     resp.raise_for_status()
                     return resp
@@ -56,7 +56,7 @@ class CAScraper(BaseScraper):
     def _post(self, url: str, data: dict, retries: int = 2) -> httpx.Response:
         for attempt in range(retries + 1):
             try:
-                with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=15.0), follow_redirects=True) as client:
+                with httpx.Client(timeout=httpx.Timeout(5.0, connect=5.0, read=15.0), follow_redirects=True) as client:
                     resp = client.post(url, data=data, headers=HEADERS)
                     resp.raise_for_status()
                     return resp

@@ -59,7 +59,7 @@ class BaseScraper(ABC):
         try:
             from app.data.state_info import STATE_INFO
             url = STATE_INFO[self.state_code]["source_url"]
-            resp = httpx.get(url, timeout=httpx.Timeout(connect=3.0, read=5.0), follow_redirects=True)
+            resp = httpx.get(url, timeout=httpx.Timeout(5.0, connect=3.0, read=5.0), follow_redirects=True)
             return resp.status_code < 500
         except Exception:
             return False
