@@ -17,7 +17,7 @@ router = APIRouter(tags=["Search"])
         200: {"description": "Search completed. Returns empty results array if no matches found — never 404."},
         403: {
             "description": "Invalid API key, or requested state is not available on your tier",
-            "content": {"application/json": {"example": {"detail": "State TX not available on free tier. Upgrade to access more states."}}},
+            "content": {"application/json": {"example": {"detail": "State TX not available on BASIC tier. Upgrade to access more states."}}},
         },
         429: {
             "description": "Rate limit exceeded for your tier",

@@ -19,7 +19,7 @@ _ERROR = {"application/json": {"schema": {"type": "object", "properties": {"deta
         200: {"description": "License found and verified"},
         403: {
             "description": "Invalid API key, or requested state is not available on your tier",
-            "content": {"application/json": {"example": {"detail": "State TX not available on free tier. Upgrade to access more states."}}},
+            "content": {"application/json": {"example": {"detail": "State TX not available on BASIC tier. Upgrade to access more states."}}},
         },
         404: {
             "description": "No license found for the given license number in the requested state",
