@@ -9,7 +9,7 @@ class LicenseDetail(BaseModel):
             "license_number": "1087351",
             "state": "CA",
             "status": "Active",
-            "expiration_date": "06/30/2026",
+            "expiration_date": "2026-06-30",
             "license_type": "General Building (B)",
             "business_name": "SMITH CONSTRUCTION INC",
             "owner_name": "JOHN SMITH",
@@ -43,7 +43,7 @@ class SearchResultItem(BaseModel):
             "owner_name": "JOHN SMITH",
             "status": "Active",
             "license_type": "General Building (B)",
-            "expiration_date": "06/30/2026",
+            "expiration_date": "2026-06-30",
         }
     })
 
@@ -67,7 +67,7 @@ class SearchResponse(BaseModel):
                     "owner_name": "JOHN SMITH",
                     "status": "Active",
                     "license_type": "General Building (B)",
-                    "expiration_date": "06/30/2026",
+                    "expiration_date": "2026-06-30",
                 }
             ],
             "total_results": 1,
