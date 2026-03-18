@@ -1,6 +1,6 @@
 import time
 from datetime import datetime, timezone
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from app.models.responses import HealthResponse
 from app.services.verification import check_state_health
 from app.config import settings
@@ -11,7 +11,7 @@ _start_time = time.time()
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health():
+async def health(response: Response):
     state_statuses = {}
     for state in ["CA", "TX", "FL"]:
         if state in settings.disabled_states_list:
@@ -20,6 +20,7 @@ async def health():
             state_statuses[state] = check_state_health(state)
     state_statuses["NY"] = "coming_soon"
 
+    response.headers["Cache-Control"] = "no-cache"
     return HealthResponse(
         status="ok",
         version="1.0.0",

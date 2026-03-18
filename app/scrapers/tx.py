@@ -2,7 +2,7 @@ import time
 import httpx
 from datetime import datetime, timezone
 from bs4 import BeautifulSoup
-from app.scrapers.base import BaseScraper, ScraperUnavailableError, LicenseNotFoundError
+from app.scrapers.base import BaseScraper, ScraperUnavailableError, LicenseNotFoundError, normalize_date
 
 SEARCH_URL = "https://www.tdlr.texas.gov/LicenseSearch/"
 SOURCE_URL = "https://www.tdlr.texas.gov/"
@@ -20,7 +20,7 @@ class TXScraper(BaseScraper):
     def _get(self, url: str, params=None, retries: int = 2) -> httpx.Response:
         for attempt in range(retries + 1):
             try:
-                with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=15.0), follow_redirects=True) as client:
                     resp = client.get(url, params=params, headers=HEADERS)
                     resp.raise_for_status()
                     return resp
@@ -32,7 +32,7 @@ class TXScraper(BaseScraper):
     def _post(self, url: str, data: dict, retries: int = 2) -> httpx.Response:
         for attempt in range(retries + 1):
             try:
-                with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=15.0), follow_redirects=True) as client:
                     resp = client.post(url, data=data, headers=HEADERS)
                     resp.raise_for_status()
                     return resp
@@ -131,12 +131,12 @@ class TXScraper(BaseScraper):
             "license_number": data.get("license_number", license_number),
             "state": "TX",
             "status": data.get("status"),
-            "expiration_date": data.get("expiration_date"),
+            "expiration_date": normalize_date(data.get("expiration_date")),
             "license_type": data.get("license_type"),
             "business_name": data.get("business_name"),
             "owner_name": data.get("owner_name"),
             "address": data.get("address"),
-            "disciplinary_actions": [],
+            "disciplinary_actions": None,
             "verified_at": datetime.now(tz=timezone.utc).isoformat(),
             "source_url": SEARCH_URL,
             "cache_hit": False,

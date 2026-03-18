@@ -1,5 +1,34 @@
+import httpx
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Optional
+
+_DATE_FORMATS = [
+    "%m/%d/%Y",    # 06/30/2026  — most common US government format
+    "%Y-%m-%d",    # 2026-06-30  — already ISO, pass through
+    "%B %d, %Y",   # June 30, 2026
+    "%b %d, %Y",   # Jun 30, 2026
+    "%m-%d-%Y",    # 06-30-2026
+    "%d-%b-%Y",    # 30-Jun-2026
+    "%m/%d/%y",    # 06/30/26    — two-digit year
+]
+
+
+def normalize_date(value):
+    """
+    Parse a date string from any common US government portal format and
+    return an ISO 8601 string (YYYY-MM-DD). Returns the original value
+    unchanged if it cannot be parsed, and None if the input is None/empty.
+    """
+    if not value:
+        return None
+    cleaned = value.strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return cleaned  # unrecognized format — return as-is rather than losing data
 
 
 class ScraperUnavailableError(Exception):
@@ -27,11 +56,10 @@ class BaseScraper(ABC):
 
     def health_check(self) -> bool:
         """Probe the source URL. Returns True if reachable."""
-        import httpx
         try:
             from app.data.state_info import STATE_INFO
             url = STATE_INFO[self.state_code]["source_url"]
-            resp = httpx.get(url, timeout=5.0, follow_redirects=True)
+            resp = httpx.get(url, timeout=httpx.Timeout(connect=3.0, read=5.0), follow_redirects=True)
             return resp.status_code < 500
         except Exception:
             return False

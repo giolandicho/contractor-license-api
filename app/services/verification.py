@@ -9,6 +9,7 @@ from app.cache.ttl_cache import (
     get_cached_search,
     set_cached_search,
 )
+from app.cache.state_status import record_success, record_failure
 
 _scrapers = {
     "CA": CAScraper(),
@@ -33,7 +34,12 @@ def verify_license(license_number: str, state: str) -> dict:
         return result
 
     scraper = get_scraper(state)
-    result = scraper.verify(license_number)
+    try:
+        result = scraper.verify(license_number)
+    except Exception:
+        record_failure(state)
+        raise
+    record_success(state)
     set_cached_verification(cache_key, result)
     return result
 
@@ -46,7 +52,12 @@ def search_licenses(name: str, state: str, limit: int) -> list:
         return cached[:limit]
 
     scraper = get_scraper(state)
-    results = scraper.search(name, limit)
+    try:
+        results = scraper.search(name, limit)
+    except Exception:
+        record_failure(state)
+        raise
+    record_success(state)
     set_cached_search(cache_key, results)
     return results
 

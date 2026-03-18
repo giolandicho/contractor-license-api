@@ -69,7 +69,7 @@ def mock_tx_verify():
         "business_name": "Cool Air TX LLC",
         "owner_name": "Bob Johnson",
         "address": "456 Oak Ave, Austin, TX 78701",
-        "disciplinary_actions": [],
+        "disciplinary_actions": None,
         "verified_at": "2026-03-12T10:00:00+00:00",
         "source_url": "https://www.tdlr.texas.gov/LicenseSearch/",
         "cache_hit": False,

@@ -3,7 +3,7 @@ from starlette.responses import JSONResponse
 from fastapi import Request
 from app.config import settings
 
-EXCLUDED_PATHS = {"/health", "/states", "/docs", "/openapi.json", "/redoc"}
+EXCLUDED_PATHS = {"/health", "/states", "/status", "/probe", "/docs", "/openapi.json", "/redoc"}
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):

@@ -34,7 +34,7 @@ TIER_STATES = {
     "free": {"CA"},
     "basic": {"CA", "TX"},
     "pro": {"CA", "TX", "FL"},
-    "enterprise": {"CA", "TX", "FL", "NY"},
+    "enterprise": {"CA", "TX", "FL"},
 }
 
 
@@ -42,4 +42,7 @@ def get_allowed_states(tier: str) -> set:
     return TIER_STATES.get(tier, {"CA"})
 
 
-limiter = Limiter(key_func=get_api_key)
+limiter = Limiter(
+    key_func=get_api_key,
+    storage_uri=settings.redis_url or "memory://",
+)
