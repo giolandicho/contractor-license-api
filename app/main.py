@@ -21,12 +21,12 @@ Verify contractor licenses in real-time from official government sources.
 **Authentication:** Pass your API key in the `X-API-Key` header.
 
 **Tiers:**
-| Tier | States | Rate limit |
-|------|--------|------------|
-| `free` | CA | 10 req/min |
-| `basic` | CA, TX | 60 req/min |
-| `pro` | CA, TX, FL | 120 req/min |
-| `enterprise` | All | 300 req/min |
+| Tier | Price | Included | Overage | States |
+|------|-------|----------|---------|--------|
+| `BASIC` | $0/month | 50 req/month | — | CA |
+| `PRO` | $49/month | 1,000 req/month | $0.10 each | CA, TX |
+| `ULTRA` | $99/month | 5,000 req/month | $0.08 each | CA, TX, FL |
+| `MEGA` | $249/month | 25,000 req/month | $0.02 each | All |
 
 ---
 
