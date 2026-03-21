@@ -5,7 +5,7 @@ from app.scrapers.base import ScraperUnavailableError
 
 def test_search_requires_auth(client):
     resp = client.get("/search?name=Smith&state=CA")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_search_ca_free_tier(client, free_headers, mock_search_results):

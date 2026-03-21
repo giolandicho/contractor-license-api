@@ -16,16 +16,30 @@ curl "https://your-api-host/search?name=Smith+Construction&state=CA&limit=10" \
 
 ## Authentication
 
-Pass your API key in the `X-API-Key` header on every request. Requests without a valid key return `403`.
+Pass your API key in the `X-API-Key` header on every request.
+
+- Missing or invalid key → `401 Unauthorized`
+- Valid key but state not included in your tier → `403 Forbidden`
 
 ## Tiers & Pricing
 
-| Tier | Price | Included | Overage | States |
-|------|-------|----------|---------|--------|
-| **BASIC** | $0/month | 50 req/month | — | CA |
-| **PRO** | $49/month | 1,000 req/month | $0.10 each | CA, TX |
-| **ULTRA** | $99/month | 5,000 req/month | $0.08 each | CA, TX, FL |
-| **MEGA** | $249/month | 25,000 req/month | $0.02 each | All |
+| Tier | Price | Included | Overage | States | Rate limit |
+|------|-------|----------|---------|--------|------------|
+| **BASIC** | $0/month | 50 req/month | — | CA | 10 req/min |
+| **PRO** | $49/month | 1,000 req/month | $0.10 each | CA, TX | 60 req/min |
+| **ULTRA** | $99/month | 5,000 req/month | $0.08 each | CA, TX, FL | 120 req/min |
+| **MEGA** | $249/month | 25,000 req/month | $0.02 each | All | 300 req/min |
+
+Monthly quotas are enforced per API key and reset on the 1st of each month.
+
+## Supported States
+
+| State | Agency | Status |
+|-------|--------|--------|
+| CA | Contractors State License Board (CSLB) | Active |
+| TX | Texas Department of Licensing and Regulation (TDLR) | Active |
+| FL | Florida Department of Business and Professional Regulation (DBPR) | Active |
+| NY | New York Department of State | Coming soon (scraper in development) |
 
 ## Endpoints
 
@@ -33,12 +47,12 @@ Pass your API key in the `X-API-Key` header on every request. Requests without a
 
 Look up a single license by number.
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `license_number` | string | yes | The contractor license number |
-| `state` | string | yes | State code: `CA`, `TX`, `FL` |
+| Parameter | Type | Required | Description | Example |
+|-----------|------|----------|-------------|---------|
+| `license_number` | string | yes | The contractor license number | `1087351` |
+| `state` | string | yes | State code: `CA`, `TX`, `FL` | `CA` |
 
-**Success response (`200`):**
+**Success (`200`):**
 ```json
 {
   "license_number": "1087351",
@@ -50,13 +64,16 @@ Look up a single license by number.
   "owner_name": "JOHN SMITH",
   "address": "123 MAIN ST, LOS ANGELES CA 90001",
   "disciplinary_actions": [],
+  "disciplinary_actions_available": true,
   "verified_at": "2024-01-15T18:30:00Z",
   "source_url": "https://www.cslb.ca.gov/...",
   "cache_hit": false
 }
 ```
 
-> **`disciplinary_actions`:** Returns a list for CA and FL (`[]` if none on record). Returns `null` for TX — disciplinary data is not available from the TDLR portal.
+**`disciplinary_actions` field:**
+- CA and FL: list (`[]` if none on record); `disciplinary_actions_available: true`
+- TX: `null` — disciplinary data is not published by TDLR; `disciplinary_actions_available: false`
 
 ---
 
@@ -64,15 +81,15 @@ Look up a single license by number.
 
 Search for licenses by business or owner name.
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `name` | string | yes | — | Business or owner name to search |
-| `state` | string | yes | — | State code: `CA`, `TX`, `FL` |
-| `limit` | integer | no | `10` | Max results to return (1–50) |
+| Parameter | Type | Required | Default | Description | Example |
+|-----------|------|----------|---------|-------------|---------|
+| `name` | string | yes | — | Business or owner name to search | `Smith Construction` |
+| `state` | string | yes | — | State code: `CA`, `TX`, `FL` | `CA` |
+| `limit` | integer | no | `10` | Max results to return (1–50) | `10` |
 
-No results returns `200` with an empty `results` array — not `404`.
+No results returns `200` with an empty `results` array — never `404`.
 
-**Success response (`200`):**
+**Success with results (`200`):**
 ```json
 {
   "state": "CA",
@@ -88,6 +105,17 @@ No results returns `200` with an empty `results` array — not `404`.
     }
   ],
   "total_results": 1,
+  "searched_at": "2024-01-15T18:30:00Z"
+}
+```
+
+**No matches (`200`):**
+```json
+{
+  "state": "CA",
+  "query": "Nonexistent Corp",
+  "results": [],
+  "total_results": 0,
   "searched_at": "2024-01-15T18:30:00Z"
 }
 ```
@@ -110,35 +138,70 @@ UptimeRobot keyword: **`states`** (structural key, always present).
 
 ### `GET /probe`
 
-Live end-to-end pipeline probe: performs a real HTTP request to the CA (CSLB) portal and returns `{"status": "ok"}` on success, `503` on failure. No authentication required. Returns `503` during the CA maintenance window (Sundays 8pm – Mondays 6am PT).
+Live end-to-end pipeline probe for a specific state. Accepts `?state=CA` (default), `?state=TX`, or `?state=FL`. Returns `{"status": "ok"}` on success, `503` on failure. No authentication required.
+
+- CA: returns `503` during the maintenance window (Sundays 8pm – Mondays 6am PT)
+- TX and FL: no scheduled maintenance windows; `503` indicates an unexpected upstream outage
 
 UptimeRobot keyword: **`ok`**. Recommended monitor interval: 15 minutes.
+
+### `GET /metrics`
+
+Prometheus metrics endpoint. Exposes request duration histograms by endpoint, method, and status code — use these to compute p95/p99 latency. No authentication required.
 
 ---
 
 ## Error Codes
 
-| Status | Meaning | What to do |
-|--------|---------|------------|
-| `403` | Missing or invalid API key, or state not available on your tier | Check your `X-API-Key` header; upgrade tier to access more states |
-| `404` | License number not found in the requested state | Verify the license number is correct |
-| `422` | Invalid request parameters | Check that `state` is a valid code and `limit` is between 1–50 |
-| `429` | Rate limit exceeded | Back off and retry; see your tier's limit above |
-| `501` | State not yet supported (e.g. NY) | Check `/states` for availability updates |
-| `503` | State scraper unavailable | Government site is unreachable or in a maintenance window; retry later |
+| Status | Cause | Recommended action |
+|--------|-------|--------------------|
+| `401` | Missing or invalid `X-API-Key` header | Check that your API key is correct and included in the header |
+| `403` | Your tier does not include the requested state | Upgrade to a higher tier; see `/states` for tier-to-state mapping |
+| `404` | License number not found in the requested state | Verify the license number directly on the issuing agency's website |
+| `422` | Invalid request parameters (bad state code, limit out of range) | Check that `state` is `CA`/`TX`/`FL` and `limit` is between 1–50 |
+| `429` | Rate limit exceeded (per-minute or monthly) | See examples below |
+| `501` | State recognized but not yet supported (NY) | Check `/states` for availability updates |
+| `503` | State scraper unavailable (maintenance window or upstream unreachable) | Check `/status` for per-state health; retry after 10 minutes |
 
 All errors return `{"detail": "explanation string"}`.
+
+**`429` — two causes:**
+
+Per-minute limit (back off and retry after 60 seconds):
+```json
+{"detail": "Rate limit exceeded: 10 per 1 minute"}
+```
+
+Monthly quota exhausted (upgrade or contact support):
+```json
+{"detail": "Monthly limit exceeded: 50 requests for 2026-03. Upgrade your plan or contact support."}
+```
+
+**`422` example** (invalid state code):
+```json
+{
+  "detail": [{"loc": ["query", "state"], "msg": "value is not a valid enumeration member", "type": "type_error.enum"}]
+}
+```
+
+**`501` example** (NY not yet supported):
+```json
+{"detail": "NY support coming soon"}
+```
 
 ---
 
 ## Performance
 
-All responses include an `X-Response-Time` header with the server-side duration.
+All responses include an `X-Response-Time` header with the server-side duration in milliseconds.
 
 - **Cache hit** (`cache_hit: true`): <100ms
 - **Cache miss** (live scrape): 3–10 seconds — data is fetched in real time from government portals
+- **Cache-miss requests are not covered by a 5-second SLA.** Build retry/timeout logic accordingly.
 - **Cache TTLs:** 20 min for `/verify`, 15 min for `/search`
-- **California maintenance window:** Sundays 8pm – Mondays 6am PT; CA requests return `503` during this window
+- **CA maintenance window:** Sundays 8pm – Mondays 6am PT; CA requests return `503`
+- **TX and FL:** No scheduled maintenance windows
+- **Prometheus p95:** Use `/metrics` with Prometheus/Grafana to track per-endpoint latency percentiles
 
 ## Local Development
 
@@ -149,9 +212,11 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-Interactive docs available at `http://localhost:8000/docs`.
+Interactive docs: `http://localhost:8000/docs` | Metrics: `http://localhost:8000/metrics`
 
 ```bash
 pytest          # run all tests
 pytest -v       # verbose
 ```
+
+**Production note:** Set `REDIS_URL` in production to enable shared rate limiting and enforce monthly quotas. Without Redis, per-minute limits are in-memory per-process and monthly quotas are not applied.

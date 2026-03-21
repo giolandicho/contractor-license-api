@@ -14,26 +14,48 @@ router = APIRouter(tags=["Search"])
     "/search",
     response_model=SearchResponse,
     responses={
-        200: {"description": "Search completed. Returns empty results array if no matches found — never 404."},
+        200: {
+            "description": "Search completed. Returns empty results array if no matches found — never 404.",
+            "content": {"application/json": {"examples": {
+                "with_results": {"summary": "Results found", "value": {
+                    "state": "CA", "query": "Smith Construction",
+                    "results": [{"license_number": "1087351", "business_name": "SMITH CONSTRUCTION INC",
+                                 "owner_name": "JOHN SMITH", "status": "Active",
+                                 "license_type": "General Building (B)", "expiration_date": "2026-06-30"}],
+                    "total_results": 1, "searched_at": "2024-01-15T18:30:00Z",
+                }},
+                "no_results": {"summary": "No matches found", "value": {
+                    "state": "CA", "query": "Nonexistent Corp",
+                    "results": [], "total_results": 0, "searched_at": "2024-01-15T18:30:00Z",
+                }},
+            }}},
+        },
+        401: {
+            "description": "Missing or invalid API key",
+            "content": {"application/json": {"example": {"detail": "Invalid or missing API key. Provide your key in the X-API-Key header."}}},
+        },
         403: {
-            "description": "Invalid API key, or requested state is not available on your tier",
+            "description": "Requested state is not available on your tier",
             "content": {"application/json": {"example": {"detail": "State TX not available on BASIC tier. Upgrade to access more states."}}},
-        },
-        429: {
-            "description": "Rate limit exceeded for your tier",
-            "content": {"application/json": {"example": {"detail": "Rate limit exceeded: 10 per 1 minute"}}},
-        },
-        501: {
-            "description": "State is recognized but not yet supported",
-            "content": {"application/json": {"example": {"detail": "NY support coming soon"}}},
-        },
-        503: {
-            "description": "State scraper is unavailable (maintenance window or upstream site unreachable)",
-            "content": {"application/json": {"example": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"}}},
         },
         422: {
             "description": "Invalid or missing request parameters",
             "content": {"application/json": {"example": {"detail": [{"loc": ["query", "limit"], "msg": "ensure this value is less than or equal to 50", "type": "value_error.number.not_le"}]}}},
+        },
+        429: {
+            "description": "Per-minute rate limit or monthly quota exceeded",
+            "content": {"application/json": {"examples": {
+                "per_minute": {"summary": "Per-minute limit hit", "value": {"detail": "Rate limit exceeded: 10 per 1 minute"}},
+                "monthly": {"summary": "Monthly quota exhausted", "value": {"detail": "Monthly limit exceeded: 50 requests for 2026-03. Upgrade your plan or contact support."}},
+            }}},
+        },
+        501: {
+            "description": "State is recognized but not yet supported (NY scraper is in development)",
+            "content": {"application/json": {"example": {"detail": "NY support coming soon"}}},
+        },
+        503: {
+            "description": "State scraper is unavailable (maintenance window or upstream site unreachable). Retry after 10 minutes or check /status.",
+            "content": {"application/json": {"example": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"}}},
         },
     },
 )

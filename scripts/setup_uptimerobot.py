@@ -39,10 +39,24 @@ MONITORS = [
     },
     {
         "name": "Contractor API — Probe (CA pipeline)",
-        "path": "/probe",
+        "path": "/probe?state=CA",
         "keyword": "ok",
         "interval": 900,  # 15 minutes
-        "description": "Live end-to-end scrape probe — confirms CA pipeline is functional",
+        "description": "Live end-to-end scrape probe — confirms CA (CSLB) pipeline is functional",
+    },
+    {
+        "name": "Contractor API — Probe (TX pipeline)",
+        "path": "/probe?state=TX",
+        "keyword": "ok",
+        "interval": 900,  # 15 minutes
+        "description": "Live end-to-end scrape probe — confirms TX (TDLR) pipeline is functional",
+    },
+    {
+        "name": "Contractor API — Probe (FL pipeline)",
+        "path": "/probe?state=FL",
+        "keyword": "ok",
+        "interval": 900,  # 15 minutes
+        "description": "Live end-to-end scrape probe — confirms FL (DBPR) pipeline is functional",
     },
 ]
 

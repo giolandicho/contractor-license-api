@@ -14,7 +14,8 @@ class LicenseDetail(BaseModel):
             "business_name": "SMITH CONSTRUCTION INC",
             "owner_name": "JOHN SMITH",
             "address": "123 MAIN ST, LOS ANGELES CA 90001",
-            "disciplinary_actions": [],  # null for TX (not supported); [] or populated list for CA/FL
+            "disciplinary_actions": [],
+            "disciplinary_actions_available": True,
             "verified_at": "2024-01-15T18:30:00Z",
             "source_url": "https://www.cslb.ca.gov/OnlineServices/CheckLicense/LicenseDetail.aspx?LicNum=1087351",
             "cache_hit": False,
@@ -30,6 +31,7 @@ class LicenseDetail(BaseModel):
     owner_name: Optional[str] = None
     address: Optional[str] = None
     disciplinary_actions: Optional[List[str]] = None
+    disciplinary_actions_available: bool = True
     verified_at: datetime
     source_url: str
     cache_hit: bool = False

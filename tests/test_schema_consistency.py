@@ -12,7 +12,7 @@ ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 VERIFY_REQUIRED_FIELDS = {
     "license_number", "state", "status", "expiration_date", "license_type",
     "business_name", "owner_name", "address", "disciplinary_actions",
-    "verified_at", "source_url", "cache_hit",
+    "disciplinary_actions_available", "verified_at", "source_url", "cache_hit",
 }
 
 SEARCH_ITEM_REQUIRED_FIELDS = {
@@ -97,6 +97,30 @@ def test_disciplinary_actions_is_null_for_tx(client, enterprise_headers, mock_tx
     data = resp.json()
     assert data["disciplinary_actions"] is None, \
         "TX disciplinary_actions must be null — TDLR does not expose disciplinary data"
+
+
+def test_disciplinary_actions_available_true_for_ca(client, enterprise_headers, mock_ca_verify):
+    with patch("app.routers.verify.verify_license", return_value=mock_ca_verify):
+        resp = client.get("/verify?license_number=1082000&state=CA", headers=enterprise_headers)
+    data = resp.json()
+    assert data["disciplinary_actions_available"] is True, \
+        "CA disciplinary_actions_available must be True"
+
+
+def test_disciplinary_actions_available_true_for_fl(client, enterprise_headers, mock_fl_verify):
+    with patch("app.routers.verify.verify_license", return_value=mock_fl_verify):
+        resp = client.get("/verify?license_number=CGC1234567&state=FL", headers=enterprise_headers)
+    data = resp.json()
+    assert data["disciplinary_actions_available"] is True, \
+        "FL disciplinary_actions_available must be True"
+
+
+def test_disciplinary_actions_available_false_for_tx(client, enterprise_headers, mock_tx_verify):
+    with patch("app.routers.verify.verify_license", return_value=mock_tx_verify):
+        resp = client.get("/verify?license_number=TACLA12345E&state=TX", headers=enterprise_headers)
+    data = resp.json()
+    assert data["disciplinary_actions_available"] is False, \
+        "TX disciplinary_actions_available must be False — TDLR does not expose disciplinary data"
 
 
 # ---------------------------------------------------------------------------

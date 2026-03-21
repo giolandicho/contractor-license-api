@@ -17,29 +17,36 @@ _ERROR = {"application/json": {"schema": {"type": "object", "properties": {"deta
     response_model=LicenseDetail,
     responses={
         200: {"description": "License found and verified"},
+        401: {
+            "description": "Missing or invalid API key",
+            "content": {"application/json": {"example": {"detail": "Invalid or missing API key. Provide your key in the X-API-Key header."}}},
+        },
         403: {
-            "description": "Invalid API key, or requested state is not available on your tier",
+            "description": "Requested state is not available on your tier",
             "content": {"application/json": {"example": {"detail": "State TX not available on BASIC tier. Upgrade to access more states."}}},
         },
         404: {
             "description": "No license found for the given license number in the requested state",
             "content": {"application/json": {"example": {"detail": "No CA license found for 9999999"}}},
         },
-        429: {
-            "description": "Rate limit exceeded for your tier",
-            "content": {"application/json": {"example": {"detail": "Rate limit exceeded: 10 per 1 minute"}}},
-        },
-        501: {
-            "description": "State is recognized but not yet supported",
-            "content": {"application/json": {"example": {"detail": "NY support coming soon"}}},
-        },
-        503: {
-            "description": "State scraper is unavailable (maintenance window or upstream site unreachable)",
-            "content": {"application/json": {"example": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"}}},
-        },
         422: {
             "description": "Invalid or missing request parameters",
             "content": {"application/json": {"example": {"detail": [{"loc": ["query", "state"], "msg": "value is not a valid enumeration member", "type": "type_error.enum"}]}}},
+        },
+        429: {
+            "description": "Per-minute rate limit or monthly quota exceeded",
+            "content": {"application/json": {"examples": {
+                "per_minute": {"summary": "Per-minute limit hit", "value": {"detail": "Rate limit exceeded: 10 per 1 minute"}},
+                "monthly": {"summary": "Monthly quota exhausted", "value": {"detail": "Monthly limit exceeded: 50 requests for 2026-03. Upgrade your plan or contact support."}},
+            }}},
+        },
+        501: {
+            "description": "State is recognized but not yet supported (NY scraper is in development)",
+            "content": {"application/json": {"example": {"detail": "NY support coming soon"}}},
+        },
+        503: {
+            "description": "State scraper is unavailable (maintenance window or upstream site unreachable). Retry after 10 minutes or check /status.",
+            "content": {"application/json": {"example": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"}}},
         },
     },
 )
@@ -83,6 +90,7 @@ async def verify(
         owner_name=result.get("owner_name"),
         address=result.get("address"),
         disciplinary_actions=result.get("disciplinary_actions", []),
+        disciplinary_actions_available=state.value != "TX",
         verified_at=datetime.now(tz=timezone.utc),
         source_url=result.get("source_url", ""),
         cache_hit=result.get("cache_hit", False),

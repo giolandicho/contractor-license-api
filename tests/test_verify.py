@@ -5,7 +5,7 @@ from app.scrapers.base import LicenseNotFoundError, ScraperUnavailableError
 
 def test_verify_requires_auth(client):
     resp = client.get("/verify?license_number=1082000&state=CA")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 def test_verify_ca_free_tier(client, free_headers, mock_ca_verify):
@@ -99,5 +99,5 @@ def test_verify_response_has_all_fields(client, pro_headers, mock_ca_verify):
     data = resp.json()
     for field in ["license_number", "state", "status", "expiration_date", "license_type",
                   "business_name", "owner_name", "address", "disciplinary_actions",
-                  "verified_at", "source_url", "cache_hit"]:
+                  "disciplinary_actions_available", "verified_at", "source_url", "cache_hit"]:
         assert field in data, f"Missing field: {field}"

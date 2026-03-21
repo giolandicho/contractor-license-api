@@ -3,7 +3,7 @@ from starlette.responses import JSONResponse
 from fastapi import Request
 from app.config import settings
 
-EXCLUDED_PATHS = {"/health", "/states", "/status", "/probe", "/docs", "/openapi.json", "/redoc"}
+EXCLUDED_PATHS = {"/health", "/states", "/status", "/probe", "/docs", "/openapi.json", "/redoc", "/metrics"}
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -22,6 +22,6 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         return JSONResponse(
-            status_code=403,
-            content={"detail": "Invalid or missing API key. Provide X-API-Key header."},
+            status_code=401,
+            content={"detail": "Invalid or missing API key. Provide your key in the X-API-Key header."},
         )
