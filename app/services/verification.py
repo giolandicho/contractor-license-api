@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import threading
+import pybreaker
 from app.scrapers.ca import CAScraper
 from app.scrapers.tx import TXScraper
 from app.scrapers.fl import FLScraper
@@ -10,11 +11,20 @@ from app.cache.ttl_cache import (
     set_cached_search,
 )
 from app.cache.state_status import record_success, record_failure
+from app.circuit_breaker import _breakers
 
 _scrapers = {
     "CA": CAScraper(),
     "TX": TXScraper(),
     "FL": FLScraper(),
+}
+
+# Per-state concurrency limits. acquire(blocking=False) fails immediately when exhausted,
+# returning 503 rather than queuing threads indefinitely.
+_semaphores = {
+    "CA": threading.Semaphore(5),
+    "TX": threading.Semaphore(5),
+    "FL": threading.Semaphore(5),
 }
 
 
@@ -34,11 +44,30 @@ def verify_license(license_number: str, state: str) -> dict:
         return result
 
     scraper = get_scraper(state)
+    breaker = _breakers.get(state.upper())
+    sem = _semaphores.get(state.upper())
+
+    if sem and not sem.acquire(blocking=False):
+        raise ScraperUnavailableError(
+            f"{state} is handling too many concurrent requests. Try again in a moment."
+        )
     try:
-        result = scraper.verify(license_number)
+        if breaker:
+            result = breaker.call(scraper.verify, license_number)
+        else:
+            result = scraper.verify(license_number)
+    except pybreaker.CircuitBreakerError:
+        record_failure(state)
+        raise ScraperUnavailableError(
+            f"{state} scraper circuit open — too many recent failures. Retrying in 30s."
+        )
     except Exception:
         record_failure(state)
         raise
+    finally:
+        if sem:
+            sem.release()
+
     record_success(state)
     set_cached_verification(cache_key, result)
     return result
@@ -52,11 +81,30 @@ def search_licenses(name: str, state: str, limit: int) -> list:
         return cached[:limit]
 
     scraper = get_scraper(state)
+    breaker = _breakers.get(state.upper())
+    sem = _semaphores.get(state.upper())
+
+    if sem and not sem.acquire(blocking=False):
+        raise ScraperUnavailableError(
+            f"{state} is handling too many concurrent requests. Try again in a moment."
+        )
     try:
-        results = scraper.search(name, limit)
+        if breaker:
+            results = breaker.call(scraper.search, name, limit)
+        else:
+            results = scraper.search(name, limit)
+    except pybreaker.CircuitBreakerError:
+        record_failure(state)
+        raise ScraperUnavailableError(
+            f"{state} scraper circuit open — too many recent failures. Retrying in 30s."
+        )
     except Exception:
         record_failure(state)
         raise
+    finally:
+        if sem:
+            sem.release()
+
     record_success(state)
     set_cached_search(cache_key, results)
     return results

@@ -17,8 +17,8 @@ _DATE_FORMATS = [
 def normalize_date(value):
     """
     Parse a date string from any common US government portal format and
-    return an ISO 8601 string (YYYY-MM-DD). Returns the original value
-    unchanged if it cannot be parsed, and None if the input is None/empty.
+    return an ISO 8601 string (YYYY-MM-DD). Returns None if the input is
+    None/empty or does not match any recognized format.
     """
     if not value:
         return None
@@ -28,7 +28,7 @@ def normalize_date(value):
             return datetime.strptime(cleaned, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
-    return cleaned  # unrecognized format — return as-is rather than losing data
+    return None  # unrecognized format — null is safer than a non-ISO string
 
 
 class ScraperUnavailableError(Exception):

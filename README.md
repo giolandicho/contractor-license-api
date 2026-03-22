@@ -138,10 +138,18 @@ UptimeRobot keyword: **`states`** (structural key, always present).
 
 ### `GET /probe`
 
-Live end-to-end pipeline probe for a specific state. Accepts `?state=CA` (default), `?state=TX`, or `?state=FL`. Returns `{"status": "ok"}` on success, `503` on failure. No authentication required.
+Reachability probe: performs a live HTTP request to the state portal and verifies it responds. Accepts `?state=CA` (default), `?state=TX`, or `?state=FL`. Returns `{"status": "ok"}` on success, `503` on failure. No authentication required.
 
 - CA: returns `503` during the maintenance window (Sundays 8pm – Mondays 6am PT)
 - TX and FL: no scheduled maintenance windows; `503` indicates an unexpected upstream outage
+
+UptimeRobot keyword: **`ok`**. Recommended monitor interval: 15 minutes.
+
+### `GET /probe/verify`
+
+Full parse probe: performs a live scrape for a known seed license number and validates the full verification pipeline (HTTP request + HTML parse + schema extraction). Requires `PROBE_LICENSE_{STATE}` environment variable to be set. Returns `{"status": "ok", "state": "CA", "license_number": "..."}` on success, `503` on failure. No authentication required.
+
+Use this in addition to `/probe` to catch scraper breakage caused by government portal HTML changes.
 
 UptimeRobot keyword: **`ok`**. Recommended monitor interval: 15 minutes.
 
@@ -195,9 +203,18 @@ Monthly quota exhausted (upgrade or contact support):
 
 All responses include an `X-Response-Time` header with the server-side duration in milliseconds.
 
-- **Cache hit** (`cache_hit: true`): <100ms
-- **Cache miss** (live scrape): 3–10 seconds — data is fetched in real time from government portals
-- **Cache-miss requests are not covered by a 5-second SLA.** Build retry/timeout logic accordingly.
+**Cache hit** (`cache_hit: true`): <100ms for all states.
+
+**Cache miss** (live scrape) — p50 and p95 by state:
+
+| State | p50 | p95 | Notes |
+|-------|-----|-----|-------|
+| CA | ~4s | ~8s | Two-step ASP.NET ViewState form — requires GET + POST to CSLB |
+| TX | ~2s | ~5s | Single POST to TDLR search |
+| FL | ~2s | ~6s | Single GET to DBPR |
+
+**Cache-miss requests are not covered by a 5-second SLA.** Build retry/timeout logic accordingly.
+
 - **Cache TTLs:** 20 min for `/verify`, 15 min for `/search`
 - **CA maintenance window:** Sundays 8pm – Mondays 6am PT; CA requests return `503`
 - **TX and FL:** No scheduled maintenance windows

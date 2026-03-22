@@ -9,13 +9,24 @@ _metrics_logger = logging.getLogger("api.metrics")
 _logger = logging.getLogger(__name__)
 
 from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
+from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from app.middleware.auth import APIKeyMiddleware
 from app.middleware.monthly_limit import MonthlyLimitMiddleware
+from app.middleware.security import SecurityMiddleware
 from app.dependencies import limiter
 from app.routers import health, states, verify, search, status, probe
 from app.config import settings
+
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Custom 429 handler that adds Retry-After so integrators know when to retry."""
+    response = JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"},
+    )
+    response.headers["Retry-After"] = "60"
+    return response
 
 
 @asynccontextmanager
@@ -26,6 +37,11 @@ async def lifespan(app: FastAPI):
             "Monthly quotas will NOT be enforced. "
             "Multi-worker deployments will have separate rate-limit buckets per worker. "
             "Set REDIS_URL in production."
+        )
+    if settings.env == "production" and not settings.redis_url:
+        raise RuntimeError(
+            "REDIS_URL is required in production. "
+            "Set it in your environment to enable shared rate limiting and monthly quotas."
         )
     yield
 
@@ -85,12 +101,13 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_sch
 
 # Rate limit state
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 # Middleware stack (first added = outermost = runs first on incoming requests)
 # Order: MonthlyLimitMiddleware → APIKeyMiddleware → timing → route handler
 app.add_middleware(MonthlyLimitMiddleware)  # innermost: runs after auth has validated the key
-app.add_middleware(APIKeyMiddleware)         # outer: validates API key before monthly check
+app.add_middleware(APIKeyMiddleware)         # middle: validates API key before monthly check
+app.add_middleware(SecurityMiddleware)       # outermost: request hardening before any auth
 
 
 @app.middleware("http")

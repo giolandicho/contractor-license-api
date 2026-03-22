@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     cache_ttl_verify: int = 1200
     cache_ttl_search: int = 900
     redis_url: Optional[str] = None
+    probe_license_ca: Optional[str] = None
+    probe_license_tx: Optional[str] = None
+    probe_license_fl: Optional[str] = None
 
     @property
     def api_keys_list(self) -> List[str]:

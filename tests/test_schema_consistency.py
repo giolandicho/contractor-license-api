@@ -179,7 +179,41 @@ def test_response_time_header_present_on_health(client):
     ("06/30/26",        "2026-06-30"),   # two-digit year
     ("",                None),           # empty string → None
     (None,              None),           # None → None
-    ("not-a-date",      "not-a-date"),   # unrecognized → pass through unchanged
+    ("not-a-date",      None),           # unrecognized → None (safer than a non-ISO string)
 ])
 def test_normalize_date(raw, expected):
     assert normalize_date(raw) == expected
+
+
+# ---------------------------------------------------------------------------
+# disciplinary_actions type invariant
+# ---------------------------------------------------------------------------
+
+def test_disciplinary_actions_type_invariant(client, enterprise_headers, request):
+    """If disciplinary_actions_available is False, disciplinary_actions must be null.
+    If True, it must be a list. This contract must hold as new scrapers are added."""
+    cases = [
+        ("CA", "mock_ca_verify", "1082000"),
+        ("TX", "mock_tx_verify", "TACLA12345E"),
+        ("FL", "mock_fl_verify", "CGC1234567"),
+    ]
+    for state, fixture_name, license_number in cases:
+        mock_data = request.getfixturevalue(fixture_name)
+        with patch("app.routers.verify.verify_license", return_value=mock_data):
+            resp = client.get(
+                f"/verify?license_number={license_number}&state={state}",
+                headers=enterprise_headers,
+            )
+        data = resp.json()
+        available = data["disciplinary_actions_available"]
+        actions = data["disciplinary_actions"]
+        if not available:
+            assert actions is None, (
+                f"{state}: disciplinary_actions must be null when "
+                f"disciplinary_actions_available is False, got {actions!r}"
+            )
+        else:
+            assert isinstance(actions, list), (
+                f"{state}: disciplinary_actions must be a list when "
+                f"disciplinary_actions_available is True, got {actions!r}"
+            )

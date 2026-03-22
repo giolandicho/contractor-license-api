@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from app.scrapers.ca import CAScraper, _is_maintenance_window
 from app.scrapers.tx import TXScraper
 from app.scrapers.fl import FLScraper
+from app.scrapers.base import ScraperUnavailableError
+from app.config import settings
 
 router = APIRouter(tags=["Probe"])
 
@@ -70,3 +72,66 @@ async def probe(
 
     response.headers["Cache-Control"] = "no-cache"
     return {"status": "ok", "state": state}
+
+
+@router.get(
+    "/probe/verify",
+    responses={
+        200: {
+            "description": "Full verify round-trip succeeded — portal reachable and parser working.",
+            "content": {"application/json": {"example": {"status": "ok", "state": "CA", "license_number": "1087351"}}},
+        },
+        422: {
+            "description": "Unsupported state for probe.",
+            "content": {"application/json": {"example": {"detail": "Unsupported state for probe: 'NY'. Use CA, TX, or FL."}}},
+        },
+        503: {
+            "description": "Scraper unavailable or seed license not configured.",
+            "content": {"application/json": {"examples": {
+                "not_configured": {"summary": "Seed not set", "value": {"detail": "PROBE_LICENSE_CA not configured. Set it in environment to enable /probe/verify."}},
+                "scraper_down": {"summary": "Scraper failed", "value": {"detail": "CA scraper circuit open — too many recent failures. Retrying in 30s."}},
+            }}},
+        },
+    },
+)
+async def probe_verify(
+    response: Response,
+    state: str = Query(default="CA", description="State pipeline to probe: CA, TX, or FL"),
+):
+    """
+    Full verify probe: performs a live scrape for a known seed license number.
+
+    Unlike `/probe` (which only checks portal reachability), this endpoint runs the
+    complete verification pipeline — HTTP request, HTML parse, and schema extraction —
+    ensuring the scraper is fully functional, not just reachable.
+
+    Requires `PROBE_LICENSE_{STATE}` environment variable to be set with a known-good
+    license number for the target state.
+
+    UptimeRobot keyword monitor: use `"ok"` as the keyword.
+    Recommended monitor interval: 15 minutes.
+    """
+    state = state.upper()
+    if state not in _scrapers:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported state for probe: {state!r}. Use CA, TX, or FL.",
+        )
+
+    seed = getattr(settings, f"probe_license_{state.lower()}", None)
+    if not seed:
+        raise HTTPException(
+            status_code=503,
+            detail=f"PROBE_LICENSE_{state} not configured. Set it in environment to enable /probe/verify.",
+        )
+
+    scraper = _scrapers[state]
+    try:
+        scraper.verify(seed)
+    except ScraperUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"{state} full verify probe failed: {e}")
+
+    response.headers["Cache-Control"] = "no-cache"
+    return {"status": "ok", "state": state, "license_number": seed}

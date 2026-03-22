@@ -16,7 +16,7 @@ _MONTHLY_LIMITS: Dict[str, Optional[int]] = {
 }
 
 _EXCLUDED_PATHS = {
-    "/health", "/states", "/status", "/probe",
+    "/health", "/states", "/status", "/probe", "/probe/verify",
     "/docs", "/openapi.json", "/redoc", "/metrics",
 }
 
