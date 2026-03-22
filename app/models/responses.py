@@ -32,6 +32,12 @@ class LicenseDetail(BaseModel):
     address: Optional[str] = None
     disciplinary_actions: Optional[List[str]] = None
     disciplinary_actions_available: bool = True
+    bond_status: Optional[str] = None
+    bond_amount: Optional[str] = None
+    bond_expiration: Optional[str] = None
+    workers_comp_status: Optional[str] = None
+    workers_comp_expiration: Optional[str] = None
+    data_freshness: Optional[str] = None
     verified_at: datetime
     source_url: str
     cache_hit: bool = False

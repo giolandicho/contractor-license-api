@@ -7,8 +7,10 @@ from app.scrapers.base import ScraperUnavailableError, LicenseNotFoundError
 from app.cache.ttl_cache import (
     get_cached_verification,
     set_cached_verification,
+    get_stale_verification,
     get_cached_search,
     set_cached_search,
+    get_stale_search,
 )
 from app.cache.state_status import record_success, record_failure
 from app.circuit_breaker import _breakers
@@ -48,8 +50,12 @@ def verify_license(license_number: str, state: str) -> dict:
     sem = _semaphores.get(state.upper())
 
     if sem and not sem.acquire(blocking=False):
+        stale = get_stale_verification(cache_key)
+        if stale:
+            return {**stale, "cache_hit": True, "data_freshness": "stale"}
         raise ScraperUnavailableError(
-            f"{state} is handling too many concurrent requests. Try again in a moment."
+            f"{state} is handling too many concurrent requests. Try again in a moment.",
+            error_code="concurrency_limit",
         )
     try:
         if breaker:
@@ -58,9 +64,19 @@ def verify_license(license_number: str, state: str) -> dict:
             result = scraper.verify(license_number)
     except pybreaker.CircuitBreakerError:
         record_failure(state)
+        stale = get_stale_verification(cache_key)
+        if stale:
+            return {**stale, "cache_hit": True, "data_freshness": "stale"}
         raise ScraperUnavailableError(
-            f"{state} scraper circuit open — too many recent failures. Retrying in 30s."
+            f"{state} scraper circuit open — too many recent failures. Retrying in 30s.",
+            error_code="circuit_open",
         )
+    except ScraperUnavailableError:
+        record_failure(state)
+        stale = get_stale_verification(cache_key)
+        if stale:
+            return {**stale, "cache_hit": True, "data_freshness": "stale"}
+        raise
     except Exception:
         record_failure(state)
         raise
@@ -85,8 +101,12 @@ def search_licenses(name: str, state: str, limit: int) -> list:
     sem = _semaphores.get(state.upper())
 
     if sem and not sem.acquire(blocking=False):
+        stale = get_stale_search(cache_key)
+        if stale is not None:
+            return stale[:limit]
         raise ScraperUnavailableError(
-            f"{state} is handling too many concurrent requests. Try again in a moment."
+            f"{state} is handling too many concurrent requests. Try again in a moment.",
+            error_code="concurrency_limit",
         )
     try:
         if breaker:
@@ -95,9 +115,19 @@ def search_licenses(name: str, state: str, limit: int) -> list:
             results = scraper.search(name, limit)
     except pybreaker.CircuitBreakerError:
         record_failure(state)
+        stale = get_stale_search(cache_key)
+        if stale is not None:
+            return stale[:limit]
         raise ScraperUnavailableError(
-            f"{state} scraper circuit open — too many recent failures. Retrying in 30s."
+            f"{state} scraper circuit open — too many recent failures. Retrying in 30s.",
+            error_code="circuit_open",
         )
+    except ScraperUnavailableError:
+        record_failure(state)
+        stale = get_stale_search(cache_key)
+        if stale is not None:
+            return stale[:limit]
+        raise
     except Exception:
         record_failure(state)
         raise

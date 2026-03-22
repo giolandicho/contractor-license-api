@@ -50,7 +50,7 @@ class CAScraper(BaseScraper):
                     return resp
             except httpx.HTTPError as e:
                 if attempt == retries:
-                    raise ScraperUnavailableError(f"CSLB request failed: {e}") from e
+                    raise ScraperUnavailableError("CSLB request failed") from e
                 time.sleep(1)
 
     def _post(self, url: str, data: dict, retries: int = 2) -> httpx.Response:
@@ -62,13 +62,14 @@ class CAScraper(BaseScraper):
                     return resp
             except httpx.HTTPError as e:
                 if attempt == retries:
-                    raise ScraperUnavailableError(f"CSLB request failed: {e}") from e
+                    raise ScraperUnavailableError("CSLB request failed") from e
                 time.sleep(1)
 
     def verify(self, license_number: str) -> dict:
         if _is_maintenance_window():
             raise ScraperUnavailableError(
-                "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"
+                "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)",
+                error_code="maintenance_window",
             )
 
         # Step 1: Load the search page to get ASP.NET form state
@@ -85,7 +86,7 @@ class CAScraper(BaseScraper):
             "ctl00$MainContent$txtLicenseNumber": license_number,
             "ctl00$MainContent$btnSearch": "Search",
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp2 = self._post(SEARCH_URL, post_data)
         soup2 = BeautifulSoup(resp2.text, "html.parser")
 
@@ -131,6 +132,16 @@ class CAScraper(BaseScraper):
                     data["owner_name"] = value
                 elif "address" in label:
                     data["address"] = value
+                elif "bond" in label and "expir" in label:
+                    data["bond_expiration"] = value
+                elif "bond" in label and "amount" in label:
+                    data["bond_amount"] = value
+                elif "bond" in label:
+                    data["bond_status"] = value
+                elif "workers" in label and "expir" in label:
+                    data["workers_comp_expiration"] = value
+                elif "workers" in label:
+                    data["workers_comp_status"] = value
 
         # Check if we actually got useful data
         if not data:
@@ -156,6 +167,11 @@ class CAScraper(BaseScraper):
             "owner_name": data.get("owner_name"),
             "address": data.get("address"),
             "disciplinary_actions": complaints,
+            "bond_status": data.get("bond_status"),
+            "bond_amount": data.get("bond_amount"),
+            "bond_expiration": data.get("bond_expiration"),
+            "workers_comp_status": data.get("workers_comp_status"),
+            "workers_comp_expiration": data.get("workers_comp_expiration"),
             "verified_at": datetime.now(tz=timezone.utc).isoformat(),
             "source_url": DETAIL_URL,
             "cache_hit": False,
@@ -164,7 +180,8 @@ class CAScraper(BaseScraper):
     def search(self, name: str, limit: int = 10) -> list:
         if _is_maintenance_window():
             raise ScraperUnavailableError(
-                "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"
+                "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)",
+                error_code="maintenance_window",
             )
 
         resp = self._get(SEARCH_URL)
@@ -184,7 +201,7 @@ class CAScraper(BaseScraper):
             "ctl00$MainContent$txtBusinessName": name,
             "ctl00$MainContent$btnSearch": "Search",
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp2 = self._post(SEARCH_URL, post_data)
         soup2 = BeautifulSoup(resp2.text, "html.parser")
 

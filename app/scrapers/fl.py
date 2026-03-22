@@ -30,7 +30,7 @@ class FLScraper(BaseScraper):
                     return resp
             except httpx.HTTPError as e:
                 if attempt == retries:
-                    raise ScraperUnavailableError(f"DBPR request failed: {e}") from e
+                    raise ScraperUnavailableError("DBPR request failed") from e
                 time.sleep(1)
 
     def verify(self, license_number: str) -> dict:
@@ -38,7 +38,7 @@ class FLScraper(BaseScraper):
             "search": "2",
             "LicNbr": license_number,
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp = self._get(SEARCH_URL, params=params)
         soup = BeautifulSoup(resp.text, "html.parser")
         return self._parse_verify(soup, license_number)
@@ -128,7 +128,7 @@ class FLScraper(BaseScraper):
             "FirstName": first_name,
             "LastName": last_name,
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp = self._get(SEARCH_URL, params=params)
         soup = BeautifulSoup(resp.text, "html.parser")
         return self._parse_search(soup, limit)

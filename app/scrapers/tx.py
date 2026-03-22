@@ -26,7 +26,7 @@ class TXScraper(BaseScraper):
                     return resp
             except httpx.HTTPError as e:
                 if attempt == retries:
-                    raise ScraperUnavailableError(f"TDLR request failed: {e}") from e
+                    raise ScraperUnavailableError("TDLR request failed") from e
                 time.sleep(1)
 
     def _post(self, url: str, data: dict, retries: int = 2) -> httpx.Response:
@@ -38,7 +38,7 @@ class TXScraper(BaseScraper):
                     return resp
             except httpx.HTTPError as e:
                 if attempt == retries:
-                    raise ScraperUnavailableError(f"TDLR request failed: {e}") from e
+                    raise ScraperUnavailableError("TDLR request failed") from e
                 time.sleep(1)
 
     def _get_form_fields(self, soup: BeautifulSoup) -> dict:
@@ -60,7 +60,7 @@ class TXScraper(BaseScraper):
             "licenseNumber": license_number,
             "searchButton": "Search",
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp2 = self._post(SEARCH_URL, post_data)
         soup2 = BeautifulSoup(resp2.text, "html.parser")
 
@@ -153,7 +153,7 @@ class TXScraper(BaseScraper):
             "businessName": name,
             "searchButton": "Search",
         }
-        time.sleep(1)
+        time.sleep(0.25)
         resp2 = self._post(SEARCH_URL, post_data)
         soup2 = BeautifulSoup(resp2.text, "html.parser")
 

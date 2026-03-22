@@ -85,6 +85,22 @@ Monthly quotas are enforced per API key (requires Redis in production). Per-minu
 
 ---
 
+**`error_code` field (on `503` responses):**
+All `503` responses include an `error_code` string alongside `detail` to enable precise retry logic:
+- `maintenance_window` — CA scheduled maintenance (Sundays 8pm – Mondays 6am PT); do not retry until Monday 6am PT
+- `circuit_open` — too many recent failures; retry after 30 seconds
+- `concurrency_limit` — too many simultaneous requests to this state; retry immediately
+- `scraper_unavailable` — upstream site unreachable or returned unexpected HTML; retry after 10 minutes
+- `state_disabled` — state temporarily disabled by operator; check `/status`
+
+---
+
+**`data_freshness` field (on `/verify` responses):**
+- `null` — live data, scraped in this request or served from the fresh 20-minute cache
+- `"stale"` — served from the 24-hour stale backing store because the state portal was temporarily unavailable; data may be up to 24 hours old
+
+---
+
 **New York (NY):** Support is in development. `/states` lists NY as `coming_soon`. Requests for NY return `501`.
 
 ---

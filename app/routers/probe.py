@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
 from app.scrapers.ca import CAScraper, _is_maintenance_window
 from app.scrapers.tx import TXScraper
 from app.scrapers.fl import FLScraper
@@ -26,8 +27,11 @@ _scrapers = {
             "content": {"application/json": {"example": {"detail": "Unsupported state for probe: 'NY'. Use CA, TX, or FL."}}},
         },
         503: {
-            "description": "Scraper is unreachable or in maintenance window.",
-            "content": {"application/json": {"example": {"detail": "CA scraper offline: maintenance window (Sundays 8pm – Mondays 6am PT)"}}},
+            "description": "Scraper is unreachable or in maintenance window. Check `error_code` to determine retry strategy.",
+            "content": {"application/json": {"examples": {
+                "maintenance": {"summary": "Scheduled maintenance", "value": {"detail": "CA scraper offline: maintenance window (Sundays 8pm – Mondays 6am PT)", "error_code": "maintenance_window"}},
+                "unavailable": {"summary": "Scraper unreachable", "value": {"detail": "CA scraper health check failed", "error_code": "scraper_unavailable"}},
+            }}},
         },
     },
 )
@@ -59,16 +63,16 @@ async def probe(
     scraper = _scrapers[state]
     try:
         ok = scraper.health_check()
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"{state} probe failed: {e}")
+    except Exception:
+        return JSONResponse(status_code=503, content={"detail": f"{state} scraper health check failed", "error_code": "scraper_unavailable"})
 
     if not ok:
         if state == "CA" and _is_maintenance_window():
-            raise HTTPException(
+            return JSONResponse(
                 status_code=503,
-                detail="CA scraper offline: maintenance window (Sundays 8pm – Mondays 6am PT)",
+                content={"detail": "CA scraper offline: maintenance window (Sundays 8pm – Mondays 6am PT)", "error_code": "maintenance_window"},
             )
-        raise HTTPException(status_code=503, detail=f"{state} scraper health check failed")
+        return JSONResponse(status_code=503, content={"detail": f"{state} scraper health check failed", "error_code": "scraper_unavailable"})
 
     response.headers["Cache-Control"] = "no-cache"
     return {"status": "ok", "state": state}
@@ -86,10 +90,11 @@ async def probe(
             "content": {"application/json": {"example": {"detail": "Unsupported state for probe: 'NY'. Use CA, TX, or FL."}}},
         },
         503: {
-            "description": "Scraper unavailable or seed license not configured.",
+            "description": "Scraper unavailable or seed license not configured. Check `error_code` to determine retry strategy.",
             "content": {"application/json": {"examples": {
-                "not_configured": {"summary": "Seed not set", "value": {"detail": "PROBE_LICENSE_CA not configured. Set it in environment to enable /probe/verify."}},
-                "scraper_down": {"summary": "Scraper failed", "value": {"detail": "CA scraper circuit open — too many recent failures. Retrying in 30s."}},
+                "not_configured": {"summary": "Seed not set", "value": {"detail": "PROBE_LICENSE_CA not configured. Set it in environment to enable /probe/verify.", "error_code": "scraper_unavailable"}},
+                "circuit_open": {"summary": "Circuit breaker open", "value": {"detail": "CA scraper circuit open — too many recent failures. Retrying in 30s.", "error_code": "circuit_open"}},
+                "unavailable": {"summary": "Scraper failed", "value": {"detail": "CA full verify probe failed", "error_code": "scraper_unavailable"}},
             }}},
         },
     },
@@ -120,18 +125,18 @@ async def probe_verify(
 
     seed = getattr(settings, f"probe_license_{state.lower()}", None)
     if not seed:
-        raise HTTPException(
+        return JSONResponse(
             status_code=503,
-            detail=f"PROBE_LICENSE_{state} not configured. Set it in environment to enable /probe/verify.",
+            content={"detail": f"PROBE_LICENSE_{state} not configured. Set it in environment to enable /probe/verify.", "error_code": "scraper_unavailable"},
         )
 
     scraper = _scrapers[state]
     try:
         scraper.verify(seed)
     except ScraperUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"{state} full verify probe failed: {e}")
+        return JSONResponse(status_code=503, content={"detail": str(e), "error_code": e.error_code})
+    except Exception:
+        return JSONResponse(status_code=503, content={"detail": f"{state} full verify probe failed", "error_code": "scraper_unavailable"})
 
     response.headers["Cache-Control"] = "no-cache"
     return {"status": "ok", "state": state, "license_number": seed}

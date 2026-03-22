@@ -58,6 +58,27 @@ MONITORS = [
         "interval": 900,  # 15 minutes
         "description": "Live end-to-end scrape probe — confirms FL (DBPR) pipeline is functional",
     },
+    {
+        "name": "Contractor API — Probe/Verify (CA full parse)",
+        "path": "/probe/verify?state=CA",
+        "keyword": "ok",
+        "interval": 900,  # 15 minutes
+        "description": "Full parse probe — confirms CA scraper HTML parse and schema extraction are functional (requires PROBE_LICENSE_CA env var)",
+    },
+    {
+        "name": "Contractor API — Probe/Verify (TX full parse)",
+        "path": "/probe/verify?state=TX",
+        "keyword": "ok",
+        "interval": 900,  # 15 minutes
+        "description": "Full parse probe — confirms TX scraper HTML parse and schema extraction are functional (requires PROBE_LICENSE_TX env var)",
+    },
+    {
+        "name": "Contractor API — Probe/Verify (FL full parse)",
+        "path": "/probe/verify?state=FL",
+        "keyword": "ok",
+        "interval": 900,  # 15 minutes
+        "description": "Full parse probe — confirms FL scraper HTML parse and schema extraction are functional (requires PROBE_LICENSE_FL env var)",
+    },
 ]
 
 

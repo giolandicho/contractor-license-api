@@ -169,9 +169,39 @@ Prometheus metrics endpoint. Exposes request duration histograms by endpoint, me
 | `422` | Invalid request parameters (bad state code, limit out of range) | Check that `state` is `CA`/`TX`/`FL` and `limit` is between 1–50 |
 | `429` | Rate limit exceeded (per-minute or monthly) | See examples below |
 | `501` | State recognized but not yet supported (NY) | Check `/states` for availability updates |
-| `503` | State scraper unavailable (maintenance window or upstream unreachable) | Check `/status` for per-state health; retry after 10 minutes |
+| `503` | State scraper unavailable | See `error_code` field for retry strategy (table below) |
 
 All errors return `{"detail": "explanation string"}`.
+
+**`401` example** (missing or invalid API key):
+```json
+{"detail": "Invalid or missing API key. Provide your key in the X-API-Key header."}
+```
+
+**`403` example** (state not in your tier):
+```json
+{"detail": "State TX not available on BASIC tier. Upgrade to access more states."}
+```
+
+**`404` example** (license number not found):
+```json
+{"detail": "No CA license found for 9999999"}
+```
+
+**`503` responses also include an `error_code` field** to enable precise retry logic:
+
+| `error_code` | Cause | Retry strategy |
+|---|---|---|
+| `maintenance_window` | CA scheduled maintenance (Sundays 8pm – Mondays 6am PT) | Do not retry until Monday 6am PT |
+| `circuit_open` | Too many recent failures — circuit breaker open | Retry after 30 seconds |
+| `concurrency_limit` | Too many simultaneous requests to this state | Retry immediately |
+| `scraper_unavailable` | Upstream site unreachable or returned unexpected HTML | Retry after 10 minutes; check `/status` |
+| `state_disabled` | State temporarily disabled by operator | Check `/status`; do not retry |
+
+Example `503` response:
+```json
+{"detail": "CA scraper circuit open — too many recent failures. Retrying in 30s.", "error_code": "circuit_open"}
+```
 
 **`429` — two causes:**
 
@@ -220,6 +250,21 @@ All responses include an `X-Response-Time` header with the server-side duration 
 - **TX and FL:** No scheduled maintenance windows
 - **Prometheus p95:** Use `/metrics` with Prometheus/Grafana to track per-endpoint latency percentiles
 
+### Stale data fallback
+
+When a state portal is temporarily unreachable (circuit breaker open, maintenance window, upstream timeout), `/verify` returns a **200 with the last-known result** rather than a `503` — if a prior result for that license is available in the stale cache. The response will include:
+
+```json
+{"data_freshness": "stale", "cache_hit": true, ...}
+```
+
+| `data_freshness` value | Meaning |
+|---|---|
+| `null` | Live data — scraped in this request or served from the fresh 20-minute cache |
+| `"stale"` | Served from the stale backing store; data may be up to 24 hours old |
+
+Stale results are retained for up to **24 hours**. If no prior result exists and the scraper is unavailable, the endpoint returns `503` as normal.
+
 ## Local Development
 
 ```bash
@@ -237,3 +282,22 @@ pytest -v       # verbose
 ```
 
 **Production note:** Set `REDIS_URL` in production to enable shared rate limiting and enforce monthly quotas. Without Redis, per-minute limits are in-memory per-process and monthly quotas are not applied.
+
+## Deployment
+
+### Gateway
+
+This API does not include a network-level gateway. Gateway-level DDoS protection and IP-rate limiting depend on the distribution channel:
+
+- **RapidAPI channel:** Gateway-level protection, schema validation, and key management are provided by the RapidAPI platform.
+- **Direct enterprise customers:** Front the Railway deployment with [Cloudflare](https://cloudflare.com) (free tier provides DDoS protection and WAF) or AWS API Gateway as a passthrough proxy.
+
+### Monitoring Setup
+
+UptimeRobot monitors are configured via `scripts/setup_uptimerobot.py`. Run once with your UptimeRobot API key to create all five monitors (health, status, and per-state probes):
+
+```bash
+UPTIMEROBOT_API_KEY=your_key python scripts/setup_uptimerobot.py
+```
+
+After setup, confirm all monitors are active in the UptimeRobot dashboard and add the public status page URL to your API documentation.

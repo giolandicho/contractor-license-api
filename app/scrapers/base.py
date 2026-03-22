@@ -33,7 +33,10 @@ def normalize_date(value):
 
 class ScraperUnavailableError(Exception):
     """Raised when the government portal is unreachable or returns unexpected HTML."""
-    pass
+
+    def __init__(self, message: str, error_code: str = "scraper_unavailable"):
+        super().__init__(message)
+        self.error_code = error_code
 
 
 class LicenseNotFoundError(Exception):

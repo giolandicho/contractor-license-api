@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Response, HTTPException, Query
+from fastapi.responses import JSONResponse
 from app.dependencies import limiter, get_tier, get_rate_limit, get_allowed_states
 from app.models.responses import SearchResponse, SearchResultItem
 from app.models.requests import StateCode
@@ -54,8 +55,13 @@ router = APIRouter(tags=["Search"])
             "content": {"application/json": {"example": {"detail": "NY support coming soon"}}},
         },
         503: {
-            "description": "State scraper is unavailable (maintenance window or upstream site unreachable). Retry after 10 minutes or check /status.",
-            "content": {"application/json": {"example": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)"}}},
+            "description": "State scraper is unavailable. Check `error_code` to determine retry strategy: `maintenance_window` (do not retry until Monday 6am PT), `circuit_open` (retry after 30s), `concurrency_limit` (retry immediately), `scraper_unavailable` (retry after 10 minutes or check /status).",
+            "content": {"application/json": {"examples": {
+                "maintenance": {"summary": "Scheduled maintenance", "value": {"detail": "CSLB offline for maintenance (Sundays 8pm – Mondays 6am PT)", "error_code": "maintenance_window"}},
+                "circuit_open": {"summary": "Circuit breaker open — retry in 30s", "value": {"detail": "CA scraper circuit open — too many recent failures. Retrying in 30s.", "error_code": "circuit_open"}},
+                "concurrency": {"summary": "Too many concurrent requests — retry immediately", "value": {"detail": "CA is handling too many concurrent requests. Try again in a moment.", "error_code": "concurrency_limit"}},
+                "unavailable": {"summary": "Upstream site unreachable", "value": {"detail": "CSLB request failed: ConnectTimeout", "error_code": "scraper_unavailable"}},
+            }}},
         },
     },
 )
@@ -74,7 +80,7 @@ async def search(
         raise HTTPException(status_code=501, detail="NY support coming soon")
 
     if state.value in settings.disabled_states_list:
-        raise HTTPException(status_code=503, detail=f"State {state.value} is currently disabled")
+        return JSONResponse(status_code=503, content={"detail": f"State {state.value} is currently disabled", "error_code": "state_disabled"})
 
     if state.value not in allowed:
         raise HTTPException(
@@ -85,7 +91,7 @@ async def search(
     try:
         raw_results = search_licenses(name, state.value, limit)
     except ScraperUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        return JSONResponse(status_code=503, content={"detail": str(e), "error_code": e.error_code})
     except LicenseNotFoundError:
         raw_results = []
 
